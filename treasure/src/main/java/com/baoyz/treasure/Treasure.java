@@ -25,6 +25,8 @@ package com.baoyz.treasure;
 
 import android.content.Context;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 
 /**
@@ -58,13 +60,58 @@ public class Treasure {
         if (value != null) {
             return value;
         }
-        final Object obj = PreferencesFinder.get(context, interfaceClass, id, sConverterFactory);
-        if (obj != null) {
-            value = (T) obj;
+
+        value = findPreferences(context, interfaceClass, id);
+
+        if (value != null) {
             sPreferencesCache.put(key, value);
             return value;
         }
+
         return null;
+    }
+
+    private static <T> T findPreferences(Context context, Class<T> interfaceClass, String id) {
+        T value = null;
+
+        try {
+            value = (T) PreferencesFinder.get(context, interfaceClass, id, sConverterFactory);
+            return value;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } catch (NoClassDefFoundError error) {
+            // Not found PreferencesFinder class
+            error.printStackTrace();
+        }
+
+        // If not found PreferencesFinder, that use reflect to find Preferences.
+
+        try {
+            final Constructor<?> constructor;
+            if (id == null) {
+                constructor = Class.forName(getPreferencesClassName(interfaceClass)).getConstructor(Context.class, Converter.Factory.class);
+                value = (T) constructor.newInstance(context, sConverterFactory);
+            } else {
+                constructor = Class.forName(getPreferencesClassName(interfaceClass)).getConstructor(Context.class, Converter.Factory.class, String.class);
+                value = (T) constructor.newInstance(context, sConverterFactory, id);
+            }
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        return value;
+    }
+
+    private static String getPreferencesClassName(Class interfaceClass) {
+        final String interfaceName = interfaceClass.getCanonicalName();
+        return interfaceName + PREFERENCES_SUFFIX;
     }
 
     static class Key {
